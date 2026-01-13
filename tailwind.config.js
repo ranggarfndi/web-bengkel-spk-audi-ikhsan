@@ -14,6 +14,14 @@ export default {
             fontFamily: {
                 sans: ['Figtree', ...defaultTheme.fontFamily.sans],
             },
+            // --- TAMBAHAN WARNA TEMA BARU ---
+            colors: {
+                'bengkel-dark': '#0f172a',   // Slate 900 (Background Gelap)
+                'bengkel-blue': '#1e40af',   // Blue 800 (Navbar/Primary)
+                'bengkel-light': '#f1f5f9',  // Slate 100 (Background Halaman)
+                'bengkel-accent': '#f59e0b', // Amber 500 (Tombol/Aksen)
+            }
+            // --------------------------------
         },
     },
 
