@@ -14,9 +14,7 @@ class VehicleController extends Controller
      */
     public function index()
     {
-        // 'with('customer')' adalah eager loading
-        // Ini mencegah N+1 query problem, sangat efisien.
-        $vehicles = Vehicle::with('customer')->latest()->paginate(10);
+        $vehicles = \App\Models\Vehicle::with('customer')->latest()->get();
 
         return view('vehicles.index', compact('vehicles'));
     }

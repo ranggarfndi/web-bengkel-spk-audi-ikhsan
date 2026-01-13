@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Vehicle; // <-- 1. Impor Model Vehicle
-use App\Models\PredictionHistory; // <-- 2. Impor Model History
+use App\Models\Vehicle;
+use App\Models\PredictionHistory;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Http\Client\ConnectionException;
@@ -11,42 +11,36 @@ use Illuminate\Http\Client\ConnectionException;
 class PredictionController extends Controller
 {
     /**
-     * Menampilkan formulir prediksi.
+     * Menampilkan Form Diagnosa
      */
     public function showForm()
     {
-        // 3. Ambil semua kendaraan (beserta info pemiliknya) untuk dropdown
-        $vehicles = Vehicle::with('customer')
-                            ->orderBy('no_polisi')
-                            ->get();
-
-        // 4. Kirim data $vehicles ke view
+        $vehicles = Vehicle::with('customer')->orderBy('no_polisi')->get();
         return view('predict', [
             'hasil' => null,
-            'vehicles' => $vehicles // <-- Kirim data ini
+            'vehicles' => $vehicles
         ]);
     }
 
     /**
-     * Menerima data dari formulir, memanggil API, dan MENYIMPAN HASIL.
+     * Memproses Diagnosa (Kirim ke Python -> Simpan DB)
      */
     public function submitForm(Request $request)
     {
-        // 5. Validasi data (perhatikan perubahannya)
-        $data = $request->validate([
-            'vehicle_id'   => 'required|exists:vehicles,id', // <-- Diubah
+        // 1. Validasi Input
+        $request->validate([
+            'vehicle_id'   => 'required|exists:vehicles,id',
             'usia_motor'   => 'required|integer|min:0',
             'jarak_tempuh' => 'required|integer|min:0',
             'gejala'       => 'required|string',
         ]);
 
-        // 6. Ambil data kendaraan dari database
+        // 2. Ambil Data Kendaraan
         $vehicle = Vehicle::find($request->vehicle_id);
 
-        // 7. Siapkan data untuk dikirim ke API Python
+        // 3. Siapkan Data API
         $apiData = [
-            // API butuh 'nama_motor', kita gunakan 'tipe_motor' dari database
-            'nama_motor'   => $vehicle->tipe_motor, 
+            'nama_motor'   => $vehicle->tipe_motor,
             'usia_motor'   => $request->usia_motor,
             'jarak_tempuh' => $request->jarak_tempuh,
             'gejala'       => $request->gejala,
@@ -55,53 +49,50 @@ class PredictionController extends Controller
         $apiUrl = 'http://127.0.0.1:5000/predict';
 
         try {
-            // 8. Kirim data ke API Python
+            // 4. Tembak API Python
             $response = Http::post($apiUrl, $apiData);
 
             if ($response->successful()) {
-                $hasil = $response->json(); // Ambil hasil JSON dari Python
+                $hasil = $response->json(); 
 
-                // 9. !!! INTI PERUBAHAN: SIMPAN KE DATABASE !!!
+                // 5. Simpan ke Database
                 PredictionHistory::create([
-                    'vehicle_id'               => $vehicle->id,
-                    'input_usia_motor'         => $request->usia_motor,
-                    'input_jarak_tempuh'       => $request->jarak_tempuh,
-                    'input_gejala'             => $request->gejala,
-                    'hasil_kelas_prediksi'   => $hasil['prediksi_kelas_perawatan'],
-                    'hasil_rekomendasi_copras' => $hasil['rekomendasi_paket_copras'],
+                    'vehicle_id'           => $vehicle->id,
+                    'input_usia_motor'     => $request->usia_motor,
+                    'input_jarak_tempuh'   => $request->jarak_tempuh,
+                    'input_gejala'         => $request->gejala,
+                    'hasil_kelas_prediksi' => $hasil['hasil_diagnosa']['kategori_perawatan'], 
+                    'hasil_rekomendasi_copras' => $hasil['rekomendasi_terbaik'], 
                 ]);
-                // ---------------------------------------------
 
-                // 10. Ambil kembali data $vehicles untuk dropdown
+                // 6. Kembalikan ke View
                 $vehicles = Vehicle::with('customer')->orderBy('no_polisi')->get();
 
-                // 11. Kirim kembali ke view dengan data 'hasil' dan 'vehicles'
                 return view('predict', [
                     'hasil' => $hasil,
-                    'vehicles' => $vehicles
+                    'vehicles' => $vehicles,
+                    'selected_vehicle' => $vehicle
                 ]);
 
             } else {
-                $errorMsg = 'API merespon dengan error: ' . $response->status();
-                return redirect()->route('predict.form')->with('error', $errorMsg);
+                return back()->with('error', 'API Error: ' . $response->status());
             }
 
         } catch (ConnectionException $e) {
-            $errorMsg = 'Tidak dapat terhubung ke Server API Prediksi. Pastikan server Python (api.py) sudah berjalan.';
-            return redirect()->route('predict.form')->with('error', $errorMsg);
+            return back()->with('error', 'Gagal koneksi ke server Python. Pastikan api.py jalan.');
         }
     }
 
+    /**
+     * Menampilkan Riwayat (UPDATE: Menggunakan get() untuk DataTables)
+     */
     public function showHistory()
     {
-        // 1. Ambil semua data riwayat
-        // Kita gunakan 'with' (Eager Loading) untuk mengambil data
-        // kendaraan dan pelanggan terkait secara efisien.
+        // PENTING: Gunakan get() agar DataTables bisa memfilter & export semua data.
         $histories = PredictionHistory::with('vehicle.customer')
-                                      ->latest() // Tampilkan yang terbaru dulu
-                                      ->paginate(15); // 15 data per halaman
-
-        // 2. Kirim data ke view baru
+                                      ->latest()
+                                      ->get(); 
+                                      
         return view('history.index', compact('histories'));
     }
 }

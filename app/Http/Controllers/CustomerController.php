@@ -12,8 +12,7 @@ class CustomerController extends Controller
      */
     public function index()
     {
-        // Ambil data terbaru, 10 per halaman
-        $customers = Customer::latest()->paginate(10);
+        $customers = \App\Models\Customer::latest()->get();
 
         return view('customers.index', compact('customers'));
     }
